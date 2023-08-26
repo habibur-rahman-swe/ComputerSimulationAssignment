@@ -35,7 +35,7 @@ public class SingleServerQueue {
 				int endTime = startTime + service.getServiceTime();
 				int waitingTime = startTime - service.getArrivalTime();
 				int timeSpend = endTime - service.getArrivalTime();
-				int systemIdle =  startTime - serviceEnds.peek();
+				int systemIdle =  service.getArrivalTime() > serviceEnds.peek() ? service.getArrivalTime() - serviceEnds.peek() : 0;
 				
 				service.setEndTime(endTime);
 				service.setStartTime(startTime);
@@ -96,7 +96,7 @@ public class SingleServerQueue {
 		
 		while (globalClock <= serviceEnds.peek()) {
 			for (Service service : services) {
-				if (service.arrivalTime <= globalClock &&globalClock <= service.endTime) {
+				if (service.arrivalTime < globalClock &&globalClock <= service.endTime) {
 					yValues[globalClock]++;
 				}
 			}
