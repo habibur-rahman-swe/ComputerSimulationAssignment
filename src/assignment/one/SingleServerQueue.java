@@ -5,80 +5,203 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Stack;
 
 import assignment.drawing.LineGraph;
 
 public class SingleServerQueue {
-	private static Random random = new Random();
 	
-	private static int numberOfThreads = 10;
+	public static int globalClock = 0;
 	
-	private static int clock;
-	private static List<Integer> inter_arrival_time = new LinkedList<>();
-	private static List<Integer> arrival_time = new LinkedList<>();
-	private static List<Integer> service_time = new LinkedList<>();
-	private static List<Integer> queue_size = new LinkedList<>();
-	private static List<Integer> service_begin = new LinkedList<>();
-	private static List<Integer> service_end = new LinkedList<>();
-	private static Queue<Service> queue = new LinkedList<>();
+	private static Stack<Integer> serviceEnds = new Stack<>();
+	private static List<Integer> waitingTimes = new LinkedList<>();
+	private static List<Integer> timeSpends = new LinkedList<>();
+	private static List<Integer> timesSysemIdle = new LinkedList<>();
+	private static int[] xValues, yValues;
+	private static List<Service> services;
 	
-	public static void main(String[] args) throws InterruptedException {
-        List<Thread> allThreads = new ArrayList<>();
-        queue_size.add(0);
-        
-        for (int i = 0; i < numberOfThreads; i++) {
-			var t = new Thread(()-> {
-				SingleServerQueue.completeTask(new Service(random.nextInt(5) + 1, random.nextInt(10) + 1));
-			});
-			allThreads.add(t);
-			t.start();
+	public static void doService(List<Service> services) {
+		for (Service service : services) {
+			if (service.serviceId == 1) {
+				service.setStartTime(0);
+				service.setEndTime(service.getServiceTime());
+				
+				serviceEnds.add(service.getServiceTime());
+				waitingTimes.add(0);
+				timeSpends.add(service.getServiceTime());
+				timesSysemIdle.add(0);
+			} else {
+				int startTime = Math.max(service.getArrivalTime(), serviceEnds.peek());
+				int endTime = startTime + service.getServiceTime();
+				int waitingTime = startTime - service.getArrivalTime();
+				int timeSpend = endTime - service.getArrivalTime();
+				int systemIdle =  startTime - serviceEnds.peek();
+				
+				service.setEndTime(endTime);
+				service.setStartTime(startTime);
+				
+				serviceEnds.add(endTime);
+				waitingTimes.add(waitingTime);
+				timeSpends.add(timeSpend);
+				timesSysemIdle.add(systemIdle);
+				
+			}
 		}
-        
-        for (Thread thread : allThreads) {
-			thread.join();
-		}
-        
-        System.out.println(clock);
-        System.out.println(queue_size.size());
-        
-        LineGraph lg = new LineGraph(queue_size);
-        lg.draw();
-    }
-	
-	public static void completeTask(Service s) {
-		System.out.println(Thread.currentThread().getId() + " interArrivalTime: " + s.interArrivalTime + " serviceTime: " + s.serviceTime);
-		queue.add(s);
-		
-		if (arrival_time.size() == 0) {
-			arrival_time.add(0);
-			service_begin.add(0);
-			service_end.add(service_begin.get(service_begin.size() - 1) + s.serviceTime);
-		} else {
-			arrival_time.add(arrival_time.get(arrival_time.size() - 1) + s.interArrivalTime);
-			int serviceTimeBegin = Math.max(arrival_time.get(arrival_time.size() - 1), service_end.get(service_end.size() - 1));
-			service_begin.add(serviceTimeBegin);
-			int serviceTimeEnd = serviceTimeBegin + s.serviceTime;
-			service_end.add(serviceTimeEnd);
-		}
-		
-		increment(service_end.get(service_end.size() - 1));
 	}
 	
-	public synchronized static void increment(int serviceEnd) {
-		while (clock < serviceEnd) {
-			++clock;
-			queue_size.add(queue.size());
+	public static void main(String[] args) throws InterruptedException {
+		
+		Random random = new Random();
+		
+//		totalServices
+		int numOfServices = 5;
+		
+		services = new ArrayList<>();
+		
+		int arrivalTime = 0;
+		int serviceTime = 0;
+		
+		for (int id = 1; id <= numOfServices; id++) {
+			serviceTime = random.nextInt(6) + 1;
+			services.add(new Service(id, arrivalTime, serviceTime));
+			arrivalTime += random.nextInt(8) + 1;
 		}
-		queue.poll();
+		
+		doService(services);
+		
+		double avgWaitingTime = getTotalWaiting() * 1.0000 / numOfServices;
+		double avgServiceTime = getTotalServiceTime(services) * 1.000 / numOfServices;
+		double avgServiceInQueue = getTotalServiceInQueue() * 1.000 / serviceEnds.peek();
+		double avgIdleTime = getTotalIdleTime() * 1.000 / serviceEnds.peek();
+
+		System.out.println("Total Waiting Time:" + getTotalWaiting());
+		System.out.println("Average Waiting Time:" + avgWaitingTime);
+		
+		System.out.println("\nTotal Service Time: " + serviceEnds.peek());
+		System.out.println("Average Service Time: " + avgServiceTime);
+		
+		System.out.println("\nAverage Service in Queue: " + avgServiceInQueue);
+		
+		System.out.println("\nTotal Idle Time: " + getTotalIdleTime());
+		System.out.println("Average Idle Time: " + avgIdleTime);
+		
+		LineGraph lg = new LineGraph(xValues, yValues);
+		lg.draw();
+		
+	}
+
+	private static double getTotalServiceInQueue() {
+		xValues = new int[serviceEnds.peek() + 2];
+		yValues = new int[serviceEnds.peek() + 2];
+		
+		while (globalClock <= serviceEnds.peek()) {
+			for (Service service : services) {
+				if (service.arrivalTime <= globalClock &&globalClock <= service.endTime) {
+					yValues[globalClock]++;
+				}
+			}
+			
+			xValues[globalClock] = globalClock;
+			globalClock++;
+		}
+		
+		int total = 0;
+		for (int y : yValues) {
+			total += y;
+		}
+		
+		return total;
+	}
+
+	private static double getTotalIdleTime() {
+		double sum = 0;
+		for (int x : timesSysemIdle) {
+			sum += x;
+		}
+		
+		return sum;
+	}
+
+	private static double getTotalServiceTime(List<Service> services) {
+		int sum = 0;
+		for (Service service : services) {
+			sum += service.getServiceTime();
+		}
+		return sum;
+	}
+
+	private static int getTotalWaiting() {
+		int sum = 0;
+		for (int waiting : waitingTimes) {
+			sum += waiting;
+		}
+		return sum;
 	}
 }
 
 class Service {
-	int interArrivalTime;
+	int serviceId;
+	int arrivalTime;
 	int serviceTime;
+	int startTime;
+	int endTime;
 	
-	Service(int interArrivalTime, int serviceTime) {
-		this.interArrivalTime = interArrivalTime;
+	public Service(int serviceId, int arrivalTime, int serviceTime) {
+		this.serviceId = serviceId;
+		this.arrivalTime = arrivalTime;
 		this.serviceTime = serviceTime;
 	}
+	
+	public Service(int arrivalTime, int serviceTime) {
+		this.arrivalTime = arrivalTime;
+		this.serviceTime = serviceTime;
+	}
+	
+
+	public int getServiceId() {
+		return serviceId;
+	}
+
+	public void setServiceId(int serviceId) {
+		this.serviceId = serviceId;
+	}
+
+	public int getArrivalTime() {
+		return arrivalTime;
+	}
+
+	public void setArrivalTime(int arrivalTime) {
+		this.arrivalTime = arrivalTime;
+	}
+
+	public int getServiceTime() {
+		return serviceTime;
+	}
+
+	public void setServiceTime(int serviceTime) {
+		this.serviceTime = serviceTime;
+	}
+
+	public int getStartTime() {
+		return startTime;
+	}
+
+	public void setStartTime(int startTime) {
+		this.startTime = startTime;
+	}
+
+	public int getEndTime() {
+		return endTime;
+	}
+
+	public void setEndTime(int endTime) {
+		this.endTime = endTime;
+	}
+
+	@Override
+	public String toString() {
+		return "Service [serviceId=" + serviceId + ", arrivalTime=" + arrivalTime + ", serviceTime=" + serviceTime
+				+ ", startTime=" + startTime + ", endTime=" + endTime + "]";
+	}
+	
 }
