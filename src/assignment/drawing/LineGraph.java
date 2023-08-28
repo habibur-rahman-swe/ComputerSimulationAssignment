@@ -38,25 +38,26 @@ public class LineGraph extends JPanel {
 
         int width = getWidth();
         int height = getHeight();
-        int xDiv = 40;
+        int xDiv = 30;
+        int yDiv = 60;
         
         // Draw x and y axes
-        g.drawLine(50, height - 50, width - 50, height - 50);
+        g.drawLine(50, height - 50 - 50, width - 50, height - 50 - 50);
         g.drawLine(50, height - 50, 50, 50);
 
         // Draw data points and connect them with lines
         g.setColor(Color.RED);
         for (int i = 0; i < xValues.length - 1; i++) {
             int x1 = 50 + (i * (width - 10)) / xDiv;
-            int y1 = height - 50 - (yValues[i] * (height - 10)) / 9;
+            int y1 = height - 50 - (yValues[i] * (height - 10)) / yDiv;
             int x2 = 50 + ((i + 1) * (width - 10)) / xDiv;
-            int y2 = height - 50 - (yValues[i + 1] * (height - 10)) / 9;
-
+            int y2 = height - 50 - (yValues[i + 1] * (height - 10)) / yDiv;
+            
 //            g.fillOval(x1 - 4, y1 - 4, 2, 2);
-            g.drawLine(x1, y1, x2, y2);
-            g.drawString("" + i, 50 + (i * (width - 9)) / xDiv, height - 30);
+            g.drawLine(x1, y1 - 50, x2, y2 - 50);
+            g.drawString("" + (i + 1), 50 + (i * (width - 9)) / xDiv, height - 30 - 50);
             // Display values at data points
-            g.drawString("" + yValues[i], 50 + (i * (width - 10)) / xDiv, y1 - 10);
+            g.drawString("" + Math.abs(yValues[i]), 50 + (i * (width - 10)) / xDiv, y1 - 10 - 50);
         }
 	}
 	
